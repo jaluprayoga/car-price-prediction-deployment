@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     # API Keys settings (comma-separated list)
     API_KEYS: str = "placeholder_api_key_please_change_in_env_file"
     
+    # Dummy user credentials for auto-seeding
+    DUMMY_USER_USERNAME: str = ""
+    DUMMY_USER_PASSWORD: str = ""
+    
     # MLflow settings
     MLFLOW_TRACKING_URI: str = "http://localhost:5000"
     

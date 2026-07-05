@@ -96,7 +96,6 @@ def predict_car_price(
         return {
             "predicted_price_usd": round(prediction, 2),
             "currency": "USD (Dollars)",
-            "estimated_value_details": f"Approx. {round(prediction * 83.0, 2)} INR (at 1 USD = 83 INR)",
             "authenticated_as": auth_info
         }
     except Exception as e:

@@ -19,9 +19,22 @@ async def lifespan(app: FastAPI):
     """Context manager controlling lifespan startup and shutdown routines."""
     logger.info("Initializing API application lifecycle...")
     
-    # 1. Initialize DB Table
+    # 1. Initialize DB Table and seed dummy user
     try:
         init_db()
+        from src.config.settings import settings
+        from src.api.dependencies import get_password_hash
+        from src.utils.db import get_user, create_user
+        
+        username = settings.DUMMY_USER_USERNAME
+        password = settings.DUMMY_USER_PASSWORD
+        if username and password:
+            if get_user(username) is None:
+                logger.info(f"Seeding dummy user from .env settings: {username}")
+                hashed = get_password_hash(password)
+                create_user(username, hashed)
+            else:
+                logger.info(f"Dummy user '{username}' already exists in database. Skipping seed.")
     except Exception as db_err:
         logger.critical(f"Failed to initialize SQLite Database: {db_err}")
         
