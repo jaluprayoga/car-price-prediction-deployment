@@ -1,0 +1,245 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Car Price Prediction ML API",
+    "description": "A production-ready Fiber-based Machine Learning API predicting car selling prices using an ONNX model pipeline.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "API Status Check",
+        "description": "Checks the health status of the API and lists available endpoints.",
+        "responses": {
+          "200": {
+            "description": "API is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "healthy" },
+                    "api_name": { "type": "string", "example": "Car Price Prediction API" },
+                    "documentation": { "type": "string", "example": "/docs" },
+                    "metrics": { "type": "string", "example": "/metrics" },
+                    "endpoints": {
+                      "type": "object",
+                      "properties": {
+                        "predict": { "type": "string", "example": "/api/predict" },
+                        "register": { "type": "string", "example": "/api/auth/register" },
+                        "token": { "type": "string", "example": "/api/auth/token" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "summary": "Register a new user",
+        "description": "Registers a new user in the database with secure hashed credentials.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password"],
+                "properties": {
+                  "username": { "type": "string", "minLength": 3, "maxLength": 50, "example": "john_doe" },
+                  "password": { "type": "string", "minLength": 6, "maxLength": 100, "example": "mysecretpassword" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User registered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "User registered successfully." }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid payload or username already registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": { "type": "string", "example": "Username already registered." }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/token": {
+      "post": {
+        "summary": "OAuth2 Token Login",
+        "description": "Authenticates a user and issues a JWT token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password"],
+                "properties": {
+                  "username": { "type": "string", "example": "admin" },
+                  "password": { "type": "string", "example": "adminpassword" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful login, JWT token generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "access_token": { "type": "string", "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." },
+                    "token_type": { "type": "string", "example": "bearer" }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Incorrect username or password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": { "type": "string", "example": "Incorrect username or password." }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/predict": {
+      "post": {
+        "summary": "Predict Car Selling Price",
+        "description": "Generates a selling price prediction for a car using physical and market variables.",
+        "security": [
+          { "ApiKeyAuth": [] },
+          { "BearerAuth": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "year", "km_driven", "fuel", "seller_type", 
+                  "transmission", "owner", "mileage", "engine", 
+                  "max_power", "seats"
+                ],
+                "properties": {
+                  "year": { "type": "integer", "minimum": 1990, "maximum": 2026, "example": 2014 },
+                  "km_driven": { "type": "integer", "minimum": 0, "example": 27000 },
+                  "fuel": { "type": "string", "enum": ["Petrol", "Diesel", "CNG", "LPG"], "example": "Petrol" },
+                  "seller_type": { "type": "string", "enum": ["Individual", "Dealer", "Trustmark Dealer"], "example": "Dealer" },
+                  "transmission": { "type": "string", "enum": ["Manual", "Automatic"], "example": "Manual" },
+                  "owner": { "type": "string", "enum": ["First Owner", "Second Owner", "Third Owner", "Fourth & Above Owner", "Test Drive Car"], "example": "First Owner" },
+                  "mileage": { "type": "number", "minimum": 0.0, "example": 23.4 },
+                  "engine": { "type": "number", "minimum": 0.0, "example": 1248.0 },
+                  "max_power": { "type": "number", "minimum": 0.0, "example": 74.0 },
+                  "seats": { "type": "integer", "minimum": 2, "maximum": 10, "example": 5 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Prediction generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "predicted_price_usd": { "type": "number", "example": 5880.81 },
+                    "currency": { "type": "string", "example": "USD (Dollars)" },
+                    "authenticated_as": { "type": "string", "example": "api_key:test-api-key-12345" }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication credentials missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": { "type": "string", "example": "Invalid JWT token or API Key." }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error for payload parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": {
+                      "type": "array",
+                      "items": { "type": "string" },
+                      "example": ["year must be between 1990 and 2026"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

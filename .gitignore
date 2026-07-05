@@ -1,16 +1,3 @@
-# Python environment and cache files
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-.pytest_cache/
-.coverage
-.cache/
-
 # Credentials & environment configuration files
 .env
 .env.local
@@ -19,11 +6,24 @@ gcp-key.json
 *key.json
 *-credentials.json
 
+# Go compiled binaries and test files
+/car-price-api
+/car-price-api.exe
+/main
+/main.exe
+*.test
+*.out
+
+# ONNX Shared Library DLL / SO binaries (local setup files)
+/lib/
+
 # Large model artifacts and trained weights
 models/model.joblib
 models/*.joblib
 models/model.pkl
 models/*.pkl
+models/model.onnx
+models/*.onnx
 
 # Local databases and SQLite files
 *.db
