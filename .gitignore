@@ -1,0 +1,40 @@
+# Python environment and cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.pytest_cache/
+.coverage
+.cache/
+
+# Credentials & environment configuration files
+.env
+.env.local
+.env.*.local
+gcp-key.json
+*key.json
+*-credentials.json
+
+# Large model artifacts and trained weights
+models/model.joblib
+models/*.joblib
+models/model.pkl
+models/*.pkl
+
+# Local databases and SQLite files
+*.db
+*.sqlite
+data/**/*.db
+data/**/*.csv
+
+# Logs
+*.log
+logs/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
