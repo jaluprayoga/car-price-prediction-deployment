@@ -22,6 +22,11 @@ type Config struct {
 	DummyUserPassword        string
 	LogLevel                 string
 	OnnxSharedLibPath        string
+	DBUser                   string
+	DBPassword               string
+	DBHost                   string
+	DBPort                   string
+	DBName                   string
 }
 
 // Global configuration instance
@@ -83,6 +88,11 @@ func LoadConfig() *Config {
 		DummyUserPassword:        getEnv("DUMMY_USER_PASSWORD", "adminpassword"),
 		LogLevel:                 getEnv("LOG_LEVEL", "INFO"),
 		OnnxSharedLibPath:        libPath,
+		DBUser:                   getEnv("DB_USER", "postgres"),
+		DBPassword:               getEnv("DB_PASSWORD", "postgres"),
+		DBHost:                   getEnv("DB_HOST", "localhost"),
+		DBPort:                   getEnv("DB_PORT", "5432"),
+		DBName:                   getEnv("DB_NAME", "car-price-prediction"),
 	}
 
 	return AppConfig

@@ -3,47 +3,81 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
-	"os"
-	"path/filepath"
+	"strings"
 
 	"github.com/jaluprayoga/car-price-prediction-deployment/internal/config"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// DBPath is the path to the SQLite database file. Can be overridden in tests.
-var DBPath = filepath.Join("data", "users.db")
+// DB is the global database connection pool.
+var DB *sql.DB
 
-// InitDB initializes the SQLite database and creates the users table if it does not exist.
+// User represents a user record in the database.
+type User struct {
+	ID             int
+	Username       string
+	Email          string
+	HashedPassword string // Map to password_hash database column
+	FullName       string
+	Role           string
+	IsActive       bool
+}
+
+// InitDB initializes the PostgreSQL database and creates the schema and tables if they do not exist.
 func InitDB() error {
-	dir := filepath.Dir(DBPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		log.Printf("[DB] Failed to create directory '%s': %v", dir, err)
-		return err
-	}
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		config.AppConfig.DBHost,
+		config.AppConfig.DBPort,
+		config.AppConfig.DBUser,
+		config.AppConfig.DBPassword,
+		config.AppConfig.DBName,
+	)
 
-	log.Printf("[DB] Initializing SQLite database at: %s", DBPath)
-	db, err := sql.Open("sqlite3", DBPath)
+	log.Printf("[DB] Initializing PostgreSQL database connection with host=%s port=%s dbname=%s",
+		config.AppConfig.DBHost, config.AppConfig.DBPort, config.AppConfig.DBName)
+
+	var err error
+	DB, err = sql.Open("postgres", connStr)
 	if err != nil {
 		log.Printf("[DB] Failed to open database: %v", err)
 		return err
 	}
-	defer db.Close()
 
-	query := `
-	CREATE TABLE IF NOT EXISTS users (
-		username TEXT PRIMARY KEY,
-		hashed_password TEXT NOT NULL
-	);`
-
-	_, err = db.Exec(query)
-	if err != nil {
-		log.Printf("[DB] Failed to create table: %v", err)
+	// Ping the database to verify the connection
+	if err = DB.Ping(); err != nil {
+		log.Printf("[DB] Failed to ping database: %v", err)
 		return err
 	}
 
-	log.Printf("[DB] Users table verified/created successfully.")
+	// Create auth schema
+	schemaQuery := `CREATE SCHEMA IF NOT EXISTS auth;`
+	if _, err = DB.Exec(schemaQuery); err != nil {
+		log.Printf("[DB] Failed to create schema 'auth': %v", err)
+		return err
+	}
+
+	// Create users table inside auth schema matching requested columns
+	tableQuery := `
+	CREATE TABLE IF NOT EXISTS auth.users (
+		id SERIAL PRIMARY KEY,
+		username VARCHAR(255) UNIQUE NOT NULL,
+		email VARCHAR(255) UNIQUE NOT NULL,
+		password_hash VARCHAR(255) NOT NULL,
+		full_name VARCHAR(100),
+		role VARCHAR(50) DEFAULT 'user',
+		is_active BOOLEAN DEFAULT true,
+		created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+	);`
+	if _, err = DB.Exec(tableQuery); err != nil {
+		log.Printf("[DB] Failed to create table 'auth.users': %v", err)
+		return err
+	}
+
+	log.Printf("[DB] PostgreSQL database schema and auth.users table verified successfully.")
 	return nil
 }
 
@@ -61,44 +95,54 @@ func VerifyPassword(password, hash string) bool {
 
 // CreateUser registers a new user in the database. Returns true on success, false if user already exists.
 func CreateUser(username, hashedPassword string) (bool, error) {
-	db, err := sql.Open("sqlite3", DBPath)
+	email := username
+	if !strings.Contains(username, "@") {
+		email = username + "@local.com"
+	}
+	return CreateUserFull(username, email, hashedPassword, username, "user", true)
+}
+
+// CreateUserFull registers a user with full details (useful for separate seeding).
+func CreateUserFull(username, email, hashedPassword, fullName, role string, isActive bool) (bool, error) {
+	if DB == nil {
+		return false, errors.New("database connection not initialized")
+	}
+
+	query := `
+		INSERT INTO auth.users (username, email, password_hash, full_name, role, is_active)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`
+	_, err := DB.Exec(query, username, email, hashedPassword, fullName, role, isActive)
 	if err != nil {
+		if pgErr, ok := err.(*pq.Error); ok {
+			if pgErr.Code == "23505" { // unique_violation code
+				log.Printf("[DB] User registration aborted. Username or Email already exists: %v", pgErr.Detail)
+				return false, nil
+			}
+		}
+		log.Printf("[DB] Failed to create user: %v", err)
 		return false, err
 	}
-	defer db.Close()
 
-	query := "INSERT INTO users (username, hashed_password) VALUES (?, ?)"
-	_, err = db.Exec(query, username, hashedPassword)
-	if err != nil {
-		// Check for SQLite constraint violation (username already exists)
-		// Error code 19 is SQLITE_CONSTRAINT
-		log.Printf("[DB] Failed to create user '%s': %v", username, err)
-		return false, nil
-	}
-
-	log.Printf("[DB] Successfully registered user: %s", username)
+	log.Printf("[DB] Successfully registered user: %s (email: %s)", username, email)
 	return true, nil
 }
 
-// User represents a user record in the database.
-type User struct {
-	Username       string
-	HashedPassword string
-}
-
-// GetUser retrieves user info from the database. Returns nil if not found.
-func GetUser(username string) (*User, error) {
-	db, err := sql.Open("sqlite3", DBPath)
-	if err != nil {
-		return nil, err
+// GetUser retrieves user info from the database. It queries both username and email. Returns nil if not found.
+func GetUser(identifier string) (*User, error) {
+	if DB == nil {
+		return nil, errors.New("database connection not initialized")
 	}
-	defer db.Close()
 
-	query := "SELECT username, hashed_password FROM users WHERE username = ?"
-	row := db.QueryRow(query, username)
+	query := `
+		SELECT id, username, email, password_hash, COALESCE(full_name, ''), COALESCE(role, 'user'), COALESCE(is_active, true)
+		FROM auth.users
+		WHERE username = $1 OR email = $1
+	`
+	row := DB.QueryRow(query, identifier)
 
 	var u User
-	err = row.Scan(&u.Username, &u.HashedPassword)
+	err := row.Scan(&u.ID, &u.Username, &u.Email, &u.HashedPassword, &u.FullName, &u.Role, &u.IsActive)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -131,7 +175,11 @@ func SeedDummyUser() {
 			log.Printf("[DB] Failed to hash dummy user password: %v", err)
 			return
 		}
-		_, _ = CreateUser(username, hashed)
+		email := username
+		if !strings.Contains(username, "@") {
+			email = username + "@example.com"
+		}
+		_, _ = CreateUserFull(username, email, hashed, "Administrator", "admin", true)
 	} else {
 		log.Printf("[DB] Dummy user '%s' already exists in database. Skipping seed.", username)
 	}

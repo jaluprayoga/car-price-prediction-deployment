@@ -6,8 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -26,18 +24,22 @@ func (m *MockPredictor) Predict(features model.CarFeatures) (float32, error) {
 }
 
 func setupTestDB(t *testing.T) func() {
-	// Set test database path
-	db.DBPath = filepath.Join("..", "data", "test_users.db")
-	_ = os.Remove(db.DBPath)
-
+	config.LoadConfig()
 	err := db.InitDB()
 	if err != nil {
 		t.Fatalf("Failed to initialize test DB: %v", err)
 	}
 
+	// Clean up any old test users
+	if db.DB != nil {
+		_, _ = db.DB.Exec("DELETE FROM auth.users WHERE username LIKE 'user_%'")
+	}
+
 	// Return cleanup function
 	return func() {
-		_ = os.Remove(db.DBPath)
+		if db.DB != nil {
+			_, _ = db.DB.Exec("DELETE FROM auth.users WHERE username LIKE 'user_%'")
+		}
 	}
 }
 

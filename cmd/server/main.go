@@ -21,11 +21,10 @@ func main() {
 	// 1. Load Configurations
 	cfg := config.LoadConfig()
 
-	// 2. Initialize Database and Seed Dummy User
+	// 2. Initialize Database
 	if err := db.InitDB(); err != nil {
-		log.Fatalf("Failed to initialize SQLite Database: %v", err)
+		log.Fatalf("Failed to initialize PostgreSQL Database: %v", err)
 	}
-	db.SeedDummyUser()
 
 	// 3. Download/Locate ONNX Model Artifact
 	modelPath := filepath.Join("models", "model.onnx")
